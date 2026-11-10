@@ -38,6 +38,49 @@ export interface ChatSession {
 
 const DEFAULT_STRUCTURED_FIELDS = '客户姓名, 联系电话, 咨询产品, 诉求分类, 紧急程度, 预计预算';
 
+export interface ModelOptionItem {
+  id: string;
+  shortLabel: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+}
+
+const MODEL_OPTIONS: ModelOptionItem[] = [
+  {
+    id: 'demo-mock',
+    shortLabel: 'Flash',
+    title: '2.5 Flash',
+    subtitle: '全能极速响应 · 内置免 Key 演示',
+    badge: '默认',
+  },
+  {
+    id: 'deepseek-primary',
+    shortLabel: 'DeepSeek',
+    title: 'DeepSeek R1',
+    subtitle: '深度思维链推理与复杂任务分析',
+    badge: 'Pro',
+  },
+  {
+    id: 'default-ha',
+    shortLabel: 'HA 路由',
+    title: 'HA 高可用容灾组',
+    subtitle: '多通道主备自动故障转移与半开探活',
+  },
+  {
+    id: 'qwen-backup',
+    shortLabel: 'Qwen',
+    title: 'Qwen-Plus',
+    subtitle: '通义千问长文档分析与稳健备用节点',
+  },
+  {
+    id: 'ollama-local',
+    shortLabel: 'Ollama',
+    title: 'Ollama Local',
+    subtitle: '本地私有化离线推理节点 (Qwen3)',
+  },
+];
+
 const QUICK_SCENARIOS = [
   {
     icon: '🕒',
@@ -98,6 +141,7 @@ export function App() {
 
   // 对话工作台内联能力开关（全部集成在同一个聊天窗口中，Prompt 由后端统一管控）
   const [channel, setChannel] = useState<string>('demo-mock');
+  const [modelMenuOpen, setModelMenuOpen] = useState<boolean>(false);
   const [enableAgent, setEnableAgent] = useState<boolean>(true);
   const [enableRag, setEnableRag] = useState<boolean>(true);
   const [enableStructuredExtract, setEnableStructuredExtract] = useState<boolean>(false);
@@ -140,8 +184,20 @@ export function App() {
   const [tplFeedback, setTplFeedback] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions[0];
+  const activeModelOption = MODEL_OPTIONS.find((m) => m.id === channel) ?? MODEL_OPTIONS[0];
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const refreshSystemMetadata = useCallback(async () => {
     try {
@@ -487,6 +543,81 @@ export function App() {
     }
   };
 
+  // 渲染对齐 Google Gemini 官网的自定义悬浮模型选择器 (Popover)
+  const renderModelPicker = (direction: 'down' | 'up') => (
+    <div className="model-picker-wrap" ref={modelMenuRef}>
+      <button
+        type="button"
+        className={`model-picker-trigger ${modelMenuOpen ? 'open' : ''}`}
+        onClick={() => setModelMenuOpen((prev) => !prev)}
+        title="选择模型"
+      >
+        <span className="picker-trigger-label">{activeModelOption.shortLabel}</span>
+        <svg
+          className={`picker-chevron ${modelMenuOpen ? 'rotated' : ''}`}
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {modelMenuOpen && (
+        <div className={`model-picker-popover ${direction === 'up' ? 'popover-up' : ''}`}>
+          <div className="model-popover-header">选择模型</div>
+          <div className="model-popover-list">
+            {MODEL_OPTIONS.map((opt) => {
+              const isSelected = opt.id === channel;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`model-option-item ${isSelected ? 'selected' : ''}`}
+                  onClick={() => {
+                    setChannel(opt.id);
+                    setModelMenuOpen(false);
+                  }}
+                >
+                  <div className="model-option-info">
+                    <div className="model-option-title-row">
+                      <span className="model-option-title">{opt.title}</span>
+                      {opt.badge && <span className="model-option-badge">{opt.badge}</span>}
+                    </div>
+                    <span className="model-option-subtitle">{opt.subtitle}</span>
+                  </div>
+                  <div className="model-option-check">
+                    {isSelected && (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="copilot-shell">
       {/* 左侧会话列表与后台管理抽屉导航栏 */}
@@ -567,28 +698,11 @@ export function App() {
 
       {/* 中央一体化全能聊天主界面 */}
       <main className="copilot-main">
-        {/* 顶部栏：仅保留会话标题、引擎在线状态与底层模型路由切换（Prompt 由后端统一管控，不在用户聊天端开放配置） */}
+        {/* 顶部栏：仅保留会话标题与引擎在线状态，模型切换统一收敛至输入胶囊内 */}
         <header className="copilot-header">
           <div className="header-left">
             <span className="chat-active-title">{activeSession.title}</span>
             <span className="online-badge">● 引擎在线</span>
-          </div>
-
-          <div className="header-controls">
-            <div className="header-select-group">
-              <span className="select-label">🌐 路由通道</span>
-              <select
-                className="header-select"
-                value={channel}
-                onChange={(e) => setChannel(e.target.value)}
-              >
-                <option value="demo-mock">demo-mock (内置免Key全能演示)</option>
-                <option value="default-ha">default-ha (高可用主备路由组)</option>
-                <option value="deepseek-primary">deepseek-primary (DeepSeek)</option>
-                <option value="qwen-backup">qwen-backup (通义千问)</option>
-                <option value="ollama-local">ollama-local (本地 Ollama)</option>
-              </select>
-            </div>
           </div>
         </header>
 
@@ -621,18 +735,7 @@ export function App() {
                     }
                   }}
                 />
-                <select
-                  className="pill-model-select"
-                  value={channel}
-                  onChange={(e) => setChannel(e.target.value)}
-                  title="切换模型路由"
-                >
-                  <option value="demo-mock">demo-mock</option>
-                  <option value="default-ha">default-ha</option>
-                  <option value="deepseek-primary">DeepSeek</option>
-                  <option value="qwen-backup">Qwen</option>
-                  <option value="ollama-local">Ollama</option>
-                </select>
+                {renderModelPicker('down')}
                 <button
                   type="button"
                   className="pill-send-icon-btn"
@@ -1010,85 +1113,80 @@ export function App() {
           )}
         </div>
 
-        {/* 底部全功能合一输入工作台（仅在进入对话后展示在底部；空白初始态已居中展示胶囊输入框） */}
+        {/* 底部全功能合一输入工作台（与初始态保持完全一致的 Gemini 胶囊输入框 + 向上弹出模型选择框） */}
         {activeSession.messages.length > 0 && (
           <footer className="copilot-composer">
-            {/* 能力开关胶囊栏 */}
-            <div className="composer-toolbar">
-              <div className="toolbar-left">
+            <div className="bottom-pill-container">
+              {enableStructuredExtract && (
+                <div className="structured-fields-bar">
+                  <span className="fields-bar-label">提取字段：</span>
+                  <input
+                    type="text"
+                    className="fields-bar-input"
+                    value={targetFieldsInput}
+                    onChange={(e) => setTargetFieldsInput(e.target.value)}
+                    placeholder="例如：客户姓名, 联系电话, 咨询产品, 预计预算"
+                  />
+                </div>
+              )}
+
+              <div className="gemini-pill-box">
                 <button
                   type="button"
-                  className={`cap-pill ${enableAgent ? 'active' : ''}`}
-                  onClick={() => setEnableAgent(!enableAgent)}
-                  title="开启后，智能体可自动调用服务器时钟、税率计算、知识检索及高风险退款工具"
+                  className="pill-plus-btn"
+                  title="管理知识库文档"
+                  onClick={() => setActiveDrawer(activeDrawer === 'kb' ? 'none' : 'kb')}
                 >
-                  <span>🤖 智能体工具 (Agent)</span>
-                  <span className="pill-state">{enableAgent ? 'ON' : 'OFF'}</span>
+                  ＋
                 </button>
-
-                <button
-                  type="button"
-                  className={`cap-pill ${enableRag ? 'active' : ''}`}
-                  onClick={() => setEnableRag(!enableRag)}
-                  title="开启后，每次提问自动检索知识库切片并生成 [#1] 引用溯源"
-                >
-                  <span>📚 知识库增强 (RAG)</span>
-                  <span className="pill-state">{enableRag ? 'ON' : 'OFF'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`cap-pill ${enableStructuredExtract ? 'active highlight' : ''}`}
-                  onClick={() => setEnableStructuredExtract(!enableStructuredExtract)}
-                  title="开启后，自动将输入文本解析为结构化键值表卡片"
-                >
-                  <span>🧬 结构化提取卡片</span>
-                  <span className="pill-state">{enableStructuredExtract ? 'ON' : 'OFF'}</span>
-                </button>
-              </div>
-
-              <div className="toolbar-right">
-                <span className="guard-status-tag">🛡️ 防注入护栏已启用</span>
-              </div>
-            </div>
-
-            {/* 当开启结构化提取时，展示内联目标字段配置条 */}
-            {enableStructuredExtract && (
-              <div className="structured-fields-bar">
-                <span className="fields-bar-label">🎯 提取目标字段（逗号分隔）：</span>
                 <input
                   type="text"
-                  className="fields-bar-input"
-                  value={targetFieldsInput}
-                  onChange={(e) => setTargetFieldsInput(e.target.value)}
-                  placeholder="例如：客户姓名, 联系电话, 咨询产品, 预计预算"
+                  className="pill-text-input"
+                  placeholder="继续提问或输入指令..."
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSendMessage();
+                    }
+                  }}
                 />
+                {renderModelPicker('up')}
+                <button
+                  type="button"
+                  className="pill-send-icon-btn"
+                  disabled={sending || !inputMessage.trim()}
+                  onClick={() => void handleSendMessage()}
+                  title="发送"
+                >
+                  ↑
+                </button>
               </div>
-            )}
 
-            {/* 消息输入框与发送按钮 */}
-            <div className="composer-input-row">
-              <textarea
-                className="composer-textarea"
-                rows={2}
-                placeholder="在此输入任何问题、指令或待提取文本（Enter 发送，Shift + Enter 换行）..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSendMessage();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="composer-send-btn"
-                disabled={sending || !inputMessage.trim()}
-                onClick={() => void handleSendMessage()}
-              >
-                {sending ? '处理中...' : '发送 ↵'}
-              </button>
+              <div className="gemini-mode-tabs bottom-mode-tabs">
+                <button
+                  type="button"
+                  className={`gemini-mode-tab ${enableAgent ? 'active' : ''}`}
+                  onClick={() => setEnableAgent(!enableAgent)}
+                >
+                  智能体工具
+                </button>
+                <button
+                  type="button"
+                  className={`gemini-mode-tab ${enableRag ? 'active' : ''}`}
+                  onClick={() => setEnableRag(!enableRag)}
+                >
+                  知识库检索
+                </button>
+                <button
+                  type="button"
+                  className={`gemini-mode-tab ${enableStructuredExtract ? 'active' : ''}`}
+                  onClick={() => setEnableStructuredExtract(!enableStructuredExtract)}
+                >
+                  结构化提取
+                </button>
+              </div>
             </div>
           </footer>
         )}

@@ -368,24 +368,151 @@ body {
   color: #94a3b8;
 }
 
-.pill-model-select {
-  background: transparent;
-  border: none;
-  color: #cbd5e1;
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 999px;
-  cursor: pointer;
-  outline: none;
+/* 对齐 Google Gemini 官网的自定义悬浮模型选择器 (Popover) */
+.model-picker-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.pill-model-select:hover {
+.model-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.model-picker-trigger:hover,
+.model-picker-trigger.open {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.picker-trigger-label {
+  letter-spacing: 0.01em;
+}
+
+.picker-chevron {
+  opacity: 0.75;
+  transition: transform 0.2s ease;
+}
+
+.picker-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.model-picker-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 300px;
+  background: #1e2028;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 8px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-picker-popover.popover-up {
+  top: auto;
+  bottom: calc(100% + 10px);
+}
+
+.model-popover-header {
+  padding: 6px 12px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.model-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-option-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.model-option-item:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.pill-model-select option {
-  background: #1e293b;
+.model-option-item.selected {
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.model-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.model-option-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-option-title {
+  font-size: 13.5px;
+  font-weight: 600;
   color: #f8fafc;
+}
+
+.model-option-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(129, 140, 248, 0.2);
+  color: #c7d2fe;
+}
+
+.model-option-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.model-option-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #818cf8;
+  flex-shrink: 0;
 }
 
 .pill-send-icon-btn {
@@ -991,12 +1118,24 @@ body {
 
 /* 底部输入工作台 (Composer) */
 .copilot-composer {
-  border-top: 1px solid var(--border-subtle);
-  background: rgba(17, 24, 39, 0.92);
-  padding: 12px 32px 16px;
+  background: transparent;
+  padding: 8px 32px 18px;
   display: flex;
   flex-direction: column;
+  align-items: center;
+}
+
+.bottom-pill-container {
+  max-width: 760px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
+}
+
+.bottom-mode-tabs {
+  margin-top: 2px;
 }
 
 .composer-toolbar {
