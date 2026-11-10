@@ -718,6 +718,289 @@ body {
   word-break: break-word;
 }
 
+/* =========================================================
+   Google Gemini 风格富文本 Markdown 排版样式 (.md-*)
+   ========================================================= */
+.md-body {
+  white-space: normal;
+  word-break: break-word;
+  font-size: 15.5px;
+  line-height: 1.78;
+  color: #e3e8ef;
+  letter-spacing: 0.01em;
+}
+
+.md-body > *:first-child {
+  margin-top: 0;
+}
+
+.md-body > *:last-child {
+  margin-bottom: 0;
+}
+
+.md-h1 {
+  font-size: 21px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 24px 0 12px;
+  line-height: 1.4;
+}
+
+.md-h2 {
+  font-size: 18.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 22px 0 10px;
+  line-height: 1.45;
+}
+
+.md-h3 {
+  font-size: 16.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 18px 0 8px;
+  line-height: 1.5;
+}
+
+.md-h4 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 14px 0 6px;
+  line-height: 1.5;
+}
+
+.md-p {
+  margin: 0 0 14px;
+  line-height: 1.78;
+  color: #e3e8ef;
+}
+
+.md-strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.md-em {
+  font-style: italic;
+  color: #cbd5e1;
+}
+
+.md-link {
+  color: #93c5fd;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.md-link:hover {
+  color: #bfdbfe;
+}
+
+/* 行内代码胶囊（仿 Google Gemini 深灰圆角底色） */
+.md-inline-code {
+  display: inline-block;
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+  padding: 1.5px 7px;
+  margin: 0 2px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.87em;
+  line-height: 1.45;
+  vertical-align: baseline;
+}
+
+/* 引用角标胶囊 [#1] */
+.md-citation-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 8px;
+  margin: 0 4px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* 数学公式块与行内公式 */
+.md-math-block {
+  margin: 20px 0;
+  padding: 10px 16px;
+  text-align: center;
+  font-family: "Cambria Math", "Times New Roman", Georgia, serif;
+  font-size: 17px;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
+  overflow-x: auto;
+}
+
+.md-inline-math {
+  font-family: "Cambria Math", "Times New Roman", Georgia, serif;
+  font-size: 1.03em;
+  color: #f8fafc;
+  padding: 0 2px;
+}
+
+/* 章节间距（替代突兀的 <hr> 横杠） */
+.md-section-gap {
+  height: 10px;
+}
+
+/* 有序列表 & 嵌套无序子列表 */
+.md-ol {
+  margin: 8px 0 16px;
+  padding-left: 24px;
+}
+
+.md-oli {
+  margin-bottom: 10px;
+  line-height: 1.76;
+  color: #e3e8ef;
+  padding-left: 4px;
+}
+
+.md-oli::marker {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.md-oli-main {
+  display: block;
+}
+
+.md-sub-ul {
+  list-style-type: circle;
+  margin: 8px 0 6px;
+  padding-left: 22px;
+}
+
+.md-sub-li {
+  margin-bottom: 6px;
+  line-height: 1.72;
+  color: #d1d9e6;
+  padding-left: 4px;
+}
+
+/* 顶层无序列表（默认使用 Gemini 风格空心圆点或柔和圆点） */
+.md-ul {
+  list-style-type: circle;
+  margin: 8px 0 16px;
+  padding-left: 24px;
+}
+
+.md-li {
+  margin-bottom: 8px;
+  line-height: 1.75;
+  color: #e3e8ef;
+  padding-left: 4px;
+}
+
+.md-li-nested {
+  margin-left: 20px;
+  margin-bottom: 6px;
+  list-style-type: circle;
+  line-height: 1.72;
+  color: #cbd5e1;
+}
+
+/* 围栏代码块卡片 */
+.md-code-card {
+  margin: 14px 0 18px;
+  border-radius: 12px;
+  background: #14171f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.md-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.md-code-lang {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: lowercase;
+}
+
+.md-code-copy-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.md-code-copy-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.md-code-pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #e2e8f0;
+}
+
+/* 引用块 */
+.md-blockquote {
+  margin: 12px 0 16px;
+  padding: 8px 16px;
+  border-left: 3px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 0 8px 8px 0;
+  color: #cbd5e1;
+}
+
+.md-blockquote p {
+  margin: 4px 0;
+}
+
+/* GFM 表格 */
+.md-table-wrap {
+  margin: 14px 0 18px;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.md-table th,
+.md-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.md-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.md-table tr:last-child td {
+  border-bottom: none;
+}
+
 /* 用户提问下方：复制与修改操作按钮行 */
 .user-msg-actions {
   display: flex;

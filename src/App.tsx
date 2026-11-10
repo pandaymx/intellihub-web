@@ -9,6 +9,7 @@ import {
   type ToolInfoResponse,
   intelliHubApi,
 } from './api/intellihub';
+import { MarkdownContent } from './components/MarkdownContent';
 
 export interface ChatMessageItem {
   id: string;
@@ -48,11 +49,31 @@ export interface ModelOptionItem {
 
 const MODEL_OPTIONS: ModelOptionItem[] = [
   {
+    id: 'gemini-primary',
+    shortLabel: 'Gemini 3.5',
+    title: 'Gemini 3.5 Flash Lite',
+    subtitle: 'Google GenAI 原生在线推理 · 极速多轮工具与思考',
+    badge: '真实在线',
+  },
+  {
+    id: 'gemini-flash',
+    shortLabel: 'Gemini 3.8',
+    title: 'Gemini 3.8 Flash',
+    subtitle: 'Google 最新旗舰 Flash 模型 · 深度思考增强',
+    badge: 'New',
+  },
+  {
+    id: 'default-ha',
+    shortLabel: 'HA 路由',
+    title: 'HA 高可用容灾组',
+    subtitle: 'Gemini 主备自动故障转移与 KeyPool 半开探活',
+    badge: '推荐',
+  },
+  {
     id: 'demo-mock',
-    shortLabel: 'Flash',
-    title: '2.5 Flash',
-    subtitle: '全能极速响应 · 内置免 Key 演示',
-    badge: '默认',
+    shortLabel: 'Mock 演示',
+    title: 'Built-in Demo Mock',
+    subtitle: '全能极速响应 · 内置离线免 Key 沙箱演示',
   },
   {
     id: 'deepseek-primary',
@@ -60,12 +81,6 @@ const MODEL_OPTIONS: ModelOptionItem[] = [
     title: 'DeepSeek R1',
     subtitle: '深度思维链推理与复杂任务分析',
     badge: 'Pro',
-  },
-  {
-    id: 'default-ha',
-    shortLabel: 'HA 路由',
-    title: 'HA 高可用容灾组',
-    subtitle: '多通道主备自动故障转移与半开探活',
   },
   {
     id: 'qwen-backup',
@@ -140,7 +155,7 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string>('session-default');
 
   // 对话工作台内联能力开关（全部集成在同一个聊天窗口中，Prompt 由后端统一管控）
-  const [channel, setChannel] = useState<string>('demo-mock');
+  const [channel, setChannel] = useState<string>('gemini-primary');
   const [modelMenuOpen, setModelMenuOpen] = useState<boolean>(false);
   const [enableAgent, setEnableAgent] = useState<boolean>(true);
   const [enableRag, setEnableRag] = useState<boolean>(true);
@@ -840,7 +855,9 @@ export function App() {
                       {msg.reasoningContent && (
                         <details className="inline-collapse think-collapse">
                           <summary>🧠 深度思考过程 (Chain of Thought)</summary>
-                          <pre className="collapse-pre">{msg.reasoningContent}</pre>
+                          <div className="think-md-wrapper">
+                            <MarkdownContent content={msg.reasoningContent} />
+                          </div>
                         </details>
                       )}
 
@@ -892,7 +909,7 @@ export function App() {
                         </details>
                       )}
 
-                      {/* 3. 正文内容（用户消息支持内联重新编辑） */}
+                      {/* 3. 正文内容（用户消息支持内联重新编辑；AI 回复采用 Gemini 风格富文本 Markdown 渲染） */}
                       {msg.role === 'user' && editingMsgId === msg.id ? (
                         <div className="user-edit-box">
                           <textarea
@@ -940,6 +957,8 @@ export function App() {
                                 <code>{msg.errorCode}</code>）
                               </div>
                             </div>
+                          ) : msg.role === 'assistant' ? (
+                            <MarkdownContent content={msg.content} />
                           ) : (
                             msg.content
                           )}
