@@ -3,6 +3,7 @@ import './App.css';
 import {
   type AgentStepTraceDto,
   ApiClientError,
+  type PromptTemplateDto,
   type ScoredDocumentDto,
   type SystemInfoResponse,
   type ToolInfoResponse,
@@ -100,6 +101,7 @@ export function App() {
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
   const [tools, setTools] = useState<ToolInfoResponse[]>([]);
   const [kbChunks, setKbChunks] = useState<ScoredDocumentDto[]>([]);
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplateDto[]>([]);
 
   // 会话与消息列表状态
   const [sessions, setSessions] = useState<ChatSession[]>([
@@ -112,9 +114,8 @@ export function App() {
   ]);
   const [activeSessionId, setActiveSessionId] = useState<string>('session-default');
 
-  // 对话工作台内联能力开关（全部集成在同一个聊天窗口中）
+  // 对话工作台内联能力开关（全部集成在同一个聊天窗口中，Prompt 由后端统一管控）
   const [channel, setChannel] = useState<string>('demo-mock');
-  const [templateId, setTemplateId] = useState<string>('');
   const [enableAgent, setEnableAgent] = useState<boolean>(true);
   const [enableRag, setEnableRag] = useState<boolean>(true);
   const [enableStructuredExtract, setEnableStructuredExtract] = useState<boolean>(false);
@@ -128,8 +129,8 @@ export function App() {
   const [approvalNotes, setApprovalNotes] = useState<Record<string, string>>({});
   const [resumingMessageId, setResumingMessageId] = useState<string | null>(null);
 
-  // 侧滑抽屉弹窗状态（无需切走聊天界面即可管理知识库或查看系统拓扑）
-  const [activeDrawer, setActiveDrawer] = useState<'none' | 'kb' | 'system'>('none');
+  // 侧滑后台管理抽屉状态（知识库管理 / 后端 Prompt 模板管理 / 工具与路由拓扑）
+  const [activeDrawer, setActiveDrawer] = useState<'none' | 'kb' | 'prompts' | 'system'>('none');
   const [newDocTitle, setNewDocTitle] = useState<string>('企业售后服务与退换货 SLA 规范');
   const [newDocContent, setNewDocContent] = useState<string>(
     `# 企业售后服务与退换货 SLA 规范\n\n## 1. 极速退款标准\n凡订单金额在 500 元以内且商品未拆封的退货申请，系统支持 2 小时内极速原路退回；超过 500 元或涉及特殊赔付的售后单，必须触发 execute_refund_transfer 人工复核审批流。\n\n## 2. 赔付标准\n若因物流破损导致商品无法使用，除全额退回订单款项外，额外补偿客户 20 元无门槛现金券。`,
@@ -138,20 +139,39 @@ export function App() {
   const [kbBusy, setKbBusy] = useState<boolean>(false);
   const [kbFeedback, setKbFeedback] = useState<string | null>(null);
 
+  // 后端 Prompt 模板管理表单状态
+  const [tplId, setTplId] = useState<string>('default-copilot-system');
+  const [tplVersion, setTplVersion] = useState<string>('v1');
+  const [tplDesc, setTplDesc] = useState<string>(
+    '对话工作台后端全局主控系统提示词模板（由后端统一管控，不对普通聊天用户开放修改）',
+  );
+  const [tplSystem, setTplSystem] = useState<string>(
+    '你是 IntelliHub 企业级智能助手。你可以在同一对话窗口中协助用户解答架构规范问题、调用工具查询时间或计算税费、执行带人工审批的敏感操作，并在引用知识库时标注 [#1] 角标。',
+  );
+  const [tplUser, setTplUser] = useState<string>('{message}');
+  const [tplSaving, setTplSaving] = useState<boolean>(false);
+  const [tplFeedback, setTplFeedback] = useState<string | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions[0];
 
   const refreshSystemMetadata = useCallback(async () => {
     try {
-      const [info, toolList, chunks] = await Promise.all([
+      const [info, toolList, chunks, tplIds] = await Promise.all([
         intelliHubApi.getSystemInfo(),
         intelliHubApi.getAgentTools(),
         intelliHubApi.searchKnowledge({ query: 'IntelliHub 路由 KeyPool 死循环 退款', topK: 10 }),
+        intelliHubApi.listPromptIds(),
       ]);
       setSystemInfo(info);
       setTools(toolList);
       setKbChunks(chunks);
+
+      const loadedTemplates = await Promise.all(
+        tplIds.map((id) => intelliHubApi.getPromptTemplate(id)),
+      );
+      setPromptTemplates(loadedTemplates);
     } catch {
       // ignore initial metadata load error
     }
@@ -243,7 +263,6 @@ export function App() {
         message: textToSend,
         history: historyForTurn,
         channel,
-        templateId: templateId || undefined,
         enableAgent: useAgent,
         enableRag: useRag,
         enableStructuredExtract: useStructured,
@@ -409,9 +428,43 @@ export function App() {
     await refreshSystemMetadata();
   };
 
+  const handleSelectTemplateForAdmin = (tpl: PromptTemplateDto) => {
+    setTplId(tpl.id);
+    setTplVersion(tpl.version);
+    setTplDesc(tpl.description);
+    setTplSystem(tpl.systemTemplate ?? '');
+    setTplUser(tpl.userTemplate);
+    setTplFeedback(null);
+  };
+
+  const handleSaveBackendTemplate = async () => {
+    if (!tplId.trim() || !tplUser.trim() || tplSaving) return;
+    setTplSaving(true);
+    setTplFeedback(null);
+    try {
+      const saved = await intelliHubApi.registerPromptTemplate({
+        id: tplId.trim(),
+        version: tplVersion.trim() || 'v1',
+        description: tplDesc.trim(),
+        systemTemplate: tplSystem.trim(),
+        userTemplate: tplUser.trim(),
+        guardInjection: true,
+        wrapUserVariablesInXmlTag: true,
+      });
+      setTplFeedback(
+        `✅ 后端模板 [${saved.id}@${saved.version}] 已更新生效！对话引擎将自动加载最新后端配置。`,
+      );
+      await refreshSystemMetadata();
+    } catch (e) {
+      setTplFeedback(`❌ 保存失败：${e instanceof Error ? e.message : '未知错误'}`);
+    } finally {
+      setTplSaving(false);
+    }
+  };
+
   return (
     <div className="copilot-shell">
-      {/* 左侧会话列表与快捷抽屉导航栏 */}
+      {/* 左侧会话列表与后台管理抽屉导航栏 */}
       <aside className="copilot-sidebar">
         <div className="sidebar-brand">
           <div className="brand-logo">IH</div>
@@ -458,7 +511,7 @@ export function App() {
           ))}
         </div>
 
-        {/* 底部工作台附属抽屉入口（不离开聊天窗口即可管理知识库与查看工具） */}
+        {/* 底部后台管理抽屉入口（知识库、后端 Prompt 模板管理、工具拓扑） */}
         <div className="sidebar-footer">
           <button
             type="button"
@@ -467,6 +520,14 @@ export function App() {
           >
             <span>📚 知识库文档管理</span>
             <span className="count-pill">{systemInfo?.knowledgeBaseChunkCount ?? 2} 切片</span>
+          </button>
+          <button
+            type="button"
+            className={`drawer-trigger-btn ${activeDrawer === 'prompts' ? 'active' : ''}`}
+            onClick={() => setActiveDrawer(activeDrawer === 'prompts' ? 'none' : 'prompts')}
+          >
+            <span>📝 后端 Prompt 模板管理</span>
+            <span className="count-pill">{promptTemplates.length || 3} 模板</span>
           </button>
           <button
             type="button"
@@ -481,7 +542,7 @@ export function App() {
 
       {/* 中央一体化全能聊天主界面 */}
       <main className="copilot-main">
-        {/* 顶部栏：模型路由选择 + 角色模板选择 + 实时在线状态 */}
+        {/* 顶部栏：仅保留会话标题、引擎在线状态与底层模型路由切换（Prompt 由后端统一管控，不在用户聊天端开放配置） */}
         <header className="copilot-header">
           <div className="header-left">
             <span className="chat-active-title">{activeSession.title}</span>
@@ -501,21 +562,6 @@ export function App() {
                 <option value="deepseek-primary">deepseek-primary (DeepSeek)</option>
                 <option value="qwen-backup">qwen-backup (通义千问)</option>
                 <option value="ollama-local">ollama-local (本地 Ollama)</option>
-              </select>
-            </div>
-
-            <div className="header-select-group">
-              <span className="select-label">🎭 角色/Prompt模板</span>
-              <select
-                className="header-select"
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-              >
-                <option value="">通用全能 AI 助手</option>
-                <option value="customer-service-agent">
-                  customer-service-agent (金牌售后客服)
-                </option>
-                <option value="text-summarizer">text-summarizer (技术与商业摘要专家)</option>
               </select>
             </div>
           </div>
@@ -948,7 +994,108 @@ export function App() {
         </aside>
       )}
 
-      {/* 右侧滑出式抽屉 2：系统已挂载工具与路由拓扑 */}
+      {/* 右侧滑出式抽屉 2：后端 Prompt 模板统一配置与管理（不对前端普通聊天用户开放选择） */}
+      {activeDrawer === 'prompts' && (
+        <aside className="copilot-drawer">
+          <div className="drawer-header">
+            <h3>📝 后端 Prompt 模板管理</h3>
+            <button
+              type="button"
+              className="drawer-close-btn"
+              onClick={() => setActiveDrawer('none')}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="drawer-body">
+            <div className="drawer-section">
+              <h4>🔒 后端已注册 Prompt 模板 ({promptTemplates.length})</h4>
+              <p className="drawer-hint">
+                角色与 Prompt
+                模板仅由服务端统一管控，不在用户聊天界面开放切换。点击下方卡片可加载至右侧表单进行后端版本更新：
+              </p>
+              <div className="drawer-chunk-list">
+                {promptTemplates.map((tpl) => (
+                  <div key={tpl.id} className="drawer-chunk-card">
+                    <div className="chunk-card-head">
+                      <strong>
+                        {tpl.id} <span className="meta-pill">{tpl.version}</span>
+                      </strong>
+                      <button
+                        type="button"
+                        className="drawer-sec-btn"
+                        onClick={() => handleSelectTemplateForAdmin(tpl)}
+                      >
+                        加载编辑
+                      </button>
+                    </div>
+                    <p>{tpl.description}</p>
+                    {tpl.systemTemplate && (
+                      <div className="tool-io-row">
+                        <span className="io-label">System:</span>
+                        <code>{tpl.systemTemplate}</code>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-section">
+              <h4>⚙️ 新增 / 更新后端 Prompt 模板版本</h4>
+              <div className="drawer-search-row">
+                <input
+                  type="text"
+                  className="drawer-input"
+                  value={tplId}
+                  onChange={(e) => setTplId(e.target.value)}
+                  placeholder="模板 ID (如 default-copilot-system)"
+                />
+                <input
+                  type="text"
+                  className="drawer-input"
+                  style={{ width: '90px' }}
+                  value={tplVersion}
+                  onChange={(e) => setTplVersion(e.target.value)}
+                  placeholder="版本号 (v1)"
+                />
+              </div>
+              <input
+                type="text"
+                className="drawer-input"
+                value={tplDesc}
+                onChange={(e) => setTplDesc(e.target.value)}
+                placeholder="模板用途说明"
+              />
+              <textarea
+                className="drawer-textarea"
+                rows={4}
+                value={tplSystem}
+                onChange={(e) => setTplSystem(e.target.value)}
+                placeholder="后端管控的 System Prompt..."
+              />
+              <textarea
+                className="drawer-textarea"
+                rows={3}
+                value={tplUser}
+                onChange={(e) => setTplUser(e.target.value)}
+                placeholder="User Template (例如 {message})..."
+              />
+              <button
+                type="button"
+                className="drawer-primary-btn"
+                disabled={tplSaving}
+                onClick={() => void handleSaveBackendTemplate()}
+              >
+                {tplSaving ? '正在同步至后端...' : '💾 保存并发布至后端 PromptRegistry'}
+              </button>
+              {tplFeedback && <div className="drawer-feedback">{tplFeedback}</div>}
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {/* 右侧滑出式抽屉 3：系统已挂载工具与路由拓扑 */}
       {activeDrawer === 'system' && (
         <aside className="copilot-drawer">
           <div className="drawer-header">

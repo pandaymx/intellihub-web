@@ -207,8 +207,6 @@ export interface UnifiedChatTurnRequest {
   message: string;
   history?: HistoryMessage[];
   channel?: string;
-  systemPrompt?: string;
-  templateId?: string;
   enableAgent?: boolean;
   enableRag?: boolean;
   enableStructuredExtract?: boolean;
