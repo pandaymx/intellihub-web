@@ -297,96 +297,195 @@ body {
   flex-direction: column;
 }
 
-.welcome-hero {
-  max-width: 880px;
-  margin: auto;
-  text-align: center;
-  padding: 16px 12px;
-}
-
-.welcome-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #a5b4fc;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  margin-bottom: 12px;
-}
-
-.welcome-hero h2 {
-  margin: 0 0 10px;
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.welcome-hero p {
-  margin: 0 auto 24px;
+/* 极简初始欢迎态（对齐截图 Gemini 居中胶囊与无框常见问题行风格） */
+.gemini-start-screen {
   max-width: 680px;
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--text-secondary);
-}
-
-.scenario-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 14px;
-  text-align: left;
-}
-
-.scenario-card {
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 16px;
-  cursor: pointer;
-  color: var(--text-primary);
-  transition: all 0.18s ease;
+  width: 100%;
+  margin: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  padding: 20px 16px;
 }
 
-.scenario-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent);
-  background: rgba(38, 51, 77, 0.9);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+.gemini-start-title {
+  margin: 0 0 28px;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: #e2e8f0;
+  text-align: center;
 }
 
-.scenario-card-top {
+.gemini-pill-box {
+  width: 100%;
+  height: 58px;
+  background: rgba(24, 27, 36, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 0 12px 0 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.2s ease;
 }
 
-.scenario-icon {
+.gemini-pill-box:focus-within {
+  border-color: rgba(129, 140, 248, 0.45);
+}
+
+.pill-plus-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.scenario-tag {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(99, 102, 241, 0.18);
-  color: #c7d2fe;
-}
-
-.scenario-title {
-  font-size: 14px;
-  font-weight: 700;
+.pill-plus-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 
-.scenario-desc {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-muted);
+.pill-text-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.pill-text-input::placeholder {
+  color: #94a3b8;
+}
+
+.pill-model-select {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+}
+
+.pill-model-select:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pill-model-select option {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.pill-send-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.pill-send-icon-btn:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.pill-send-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gemini-mode-tabs {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.gemini-mode-tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gemini-mode-tab:hover {
+  color: #e2e8f0;
+}
+
+.gemini-mode-tab.active {
+  background: rgba(38, 43, 56, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+.centered-fields-bar {
+  margin-top: 14px;
+  max-width: 540px;
+}
+
+.gemini-suggestion-list {
+  margin-top: 34px;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.gemini-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gemini-suggestion-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.suggestion-row-icon {
+  font-size: 15px;
+  opacity: 0.8;
+}
+
+.suggestion-row-text {
+  line-height: 1.4;
 }
 
 /* 对话消息流列表（无头像极简现代风格） */
