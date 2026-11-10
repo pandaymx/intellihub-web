@@ -20,22 +20,43 @@ function cleanLatexText(raw: string): string {
     .trim();
 }
 
+function normalizeHref(rawUrl: string): string {
+  const cleaned = rawUrl
+    .trim()
+    .replace(/\s+["'][^"']*["']$/, '')
+    .trim();
+  if (
+    cleaned.startsWith('http://') ||
+    cleaned.startsWith('https://') ||
+    cleaned.startsWith('mailto:') ||
+    cleaned.startsWith('#') ||
+    cleaned.startsWith('/')
+  ) {
+    return cleaned;
+  }
+  return `https://${cleaned}`;
+}
+
 /**
  * 解析单行内联 Markdown 语法：
  * - 行内代码 `code`
- * - 行内数学公式 $...$
+ * - 行内数学公式 $$...$$ / $...$
  * - 知识库引用角标 [#1]
- * - 粗体 **bold**
+ * - Markdown 超链接 [text](url)
+ * - 尖括号链接 <https://...> 与裸 URL https://...
+ * - 粗体 **bold** / __bold__
  * - 斜体 *italic*
- * - 超链接 [text](url)
  */
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const tokenRegex =
-    /(`[^`]+`|\$\$[^$]+\$\$|\$[^$\n]+\$|\[#\d+\]|\*\*[^*]+\*\*|__[^_]+__|\[[^\]]+\]\([^)]+\)|\*[^*\n]+\*)/g;
+    /(`[^`]+`|\$\$[^$]+\$\$|\$[^$\n]+\$|\[#\d+\]|\[[^\]]+\]\s*\([^)\n]+\)|<https?:\/\/[^\s>]+>|\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|https?:\/\/[^\s<>"')\]，。；！？、]+)/g;
 
   const parts = text.split(tokenRegex);
-  return parts.map((part, idx) => {
-    const key = `${keyPrefix}-in-${idx}`;
+  let tokenIdx = 0;
+
+  return parts.map((part) => {
+    tokenIdx += 1;
+    const key = `${keyPrefix}-in-${tokenIdx}`;
     if (!part) return null;
 
     // 1. 行内代码 `code`
@@ -72,7 +93,49 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       );
     }
 
-    // 4. 粗体 **bold** 或 __bold__
+    // 4. Markdown 链接 [label](url)
+    const linkMatch = part.match(/^\[([^\]]+)\]\s*\(([^)\n]+)\)$/);
+    if (linkMatch) {
+      const label = linkMatch[1];
+      const href = normalizeHref(linkMatch[2]);
+      return (
+        <a
+          key={key}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="md-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{renderInline(label, `${key}-lbl`)}</span>
+          <span className="md-link-arrow" aria-hidden="true">
+            ↗
+          </span>
+        </a>
+      );
+    }
+
+    // 5. 尖括号自动链接 <https://...>
+    if (part.startsWith('<http') && part.endsWith('>')) {
+      const url = part.slice(1, -1);
+      return (
+        <a
+          key={key}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="md-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{url}</span>
+          <span className="md-link-arrow" aria-hidden="true">
+            ↗
+          </span>
+        </a>
+      );
+    }
+
+    // 6. 粗体 **bold** 或 __bold__
     if (
       (part.startsWith('**') && part.endsWith('**')) ||
       (part.startsWith('__') && part.endsWith('__'))
@@ -84,22 +147,31 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       );
     }
 
-    // 5. 链接 [label](url)
-    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (linkMatch) {
-      return (
-        <a key={key} href={linkMatch[2]} target="_blank" rel="noreferrer" className="md-link">
-          {linkMatch[1]}
-        </a>
-      );
-    }
-
-    // 6. 斜体 *italic*
+    // 7. 斜体 *italic*
     if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
       return (
         <em key={key} className="md-em">
-          {part.slice(1, -1)}
+          {renderInline(part.slice(1, -1), `${key}-em`)}
         </em>
+      );
+    }
+
+    // 8. 裸 URL (https://... 或 http://...)
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a
+          key={key}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="md-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{part}</span>
+          <span className="md-link-arrow" aria-hidden="true">
+            ↗
+          </span>
+        </a>
       );
     }
 
@@ -107,29 +179,311 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   });
 }
 
+const CODE_KEYWORDS = new Set([
+  'package',
+  'import',
+  'public',
+  'private',
+  'protected',
+  'class',
+  'interface',
+  'enum',
+  'record',
+  'extends',
+  'implements',
+  'return',
+  'void',
+  'static',
+  'final',
+  'abstract',
+  'synchronized',
+  'volatile',
+  'transient',
+  'new',
+  'this',
+  'super',
+  'if',
+  'else',
+  'for',
+  'while',
+  'do',
+  'switch',
+  'case',
+  'default',
+  'break',
+  'continue',
+  'try',
+  'catch',
+  'finally',
+  'throw',
+  'throws',
+  'boolean',
+  'byte',
+  'short',
+  'int',
+  'long',
+  'float',
+  'double',
+  'char',
+  'var',
+  'val',
+  'fun',
+  'def',
+  'from',
+  'as',
+  'async',
+  'await',
+  'const',
+  'let',
+  'function',
+  'export',
+  'type',
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'SELECT',
+  'FROM',
+  'WHERE',
+  'INSERT',
+  'INTO',
+  'VALUES',
+  'UPDATE',
+  'SET',
+  'DELETE',
+  'JOIN',
+  'LEFT',
+  'RIGHT',
+  'INNER',
+  'ON',
+  'GROUP',
+  'BY',
+  'ORDER',
+  'LIMIT',
+  'AND',
+  'OR',
+  'NOT',
+  'IN',
+  'AS',
+]);
+
+/**
+ * 轻量级零依赖语法高亮分词器（支持 Java / Kotlin / TS / JS / Python / SQL / YAML / XML / Bash）
+ */
+function highlightCodeLine(line: string, lineKey: string): ReactNode[] {
+  if (!line) return [''];
+
+  // 整行注释快速分支
+  const trimmed = line.trim();
+  if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('-- ')) {
+    return [
+      <span key={`${lineKey}-cmt`} className="tok-comment">
+        {line}
+      </span>,
+    ];
+  }
+
+  const tokenPattern =
+    /(\/\/.*$|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|@[A-Za-z_][A-Za-z0-9_.]*|<\/?[A-Za-z0-9_:-]+|\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*\()|\b[A-Z][A-Za-z0-9_]*\b|\b[a-z_][A-Za-z0-9_]*\b|\b\d+(?:\.\d+)?\b)/gm;
+
+  const parts = line.split(tokenPattern);
+  let idx = 0;
+
+  return parts.map((part) => {
+    idx += 1;
+    const key = `${lineKey}-t-${idx}`;
+    if (!part) return null;
+
+    // 1. 注释
+    if (part.startsWith('//') || part.startsWith('/*')) {
+      return (
+        <span key={key} className="tok-comment">
+          {part}
+        </span>
+      );
+    }
+
+    // 2. 字符串字面量
+    if (
+      (part.startsWith('"') && part.endsWith('"')) ||
+      (part.startsWith("'") && part.endsWith("'")) ||
+      (part.startsWith('`') && part.endsWith('`'))
+    ) {
+      return (
+        <span key={key} className="tok-string">
+          {part}
+        </span>
+      );
+    }
+
+    // 3. 注解 / 装饰器 (@RestController, @GetMapping)
+    if (part.startsWith('@') && part.length > 1) {
+      return (
+        <span key={key} className="tok-annotation">
+          {part}
+        </span>
+      );
+    }
+
+    // 4. XML / HTML 标签
+    if (part.startsWith('<')) {
+      return (
+        <span key={key} className="tok-tag">
+          {part}
+        </span>
+      );
+    }
+
+    // 5. 语言关键字
+    if (CODE_KEYWORDS.has(part)) {
+      return (
+        <span key={key} className="tok-keyword">
+          {part}
+        </span>
+      );
+    }
+
+    // 6. 类型或类名 (大写字母开头，如 String, HelloController)
+    if (/^[A-Z][A-Za-z0-9_]*$/.test(part)) {
+      return (
+        <span key={key} className="tok-type">
+          {part}
+        </span>
+      );
+    }
+
+    // 7. 数字字面量
+    if (/^\d+(?:\.\d+)?$/.test(part)) {
+      return (
+        <span key={key} className="tok-number">
+          {part}
+        </span>
+      );
+    }
+
+    // 8. 函数/方法名（如果在原行中紧跟左括号）
+    if (/^[a-z_][A-Za-z0-9_]*$/.test(part) && line.includes(`${part}(`)) {
+      return (
+        <span key={key} className="tok-func">
+          {part}
+        </span>
+      );
+    }
+
+    return part;
+  });
+}
+
+const LANG_DISPLAY_MAP: Record<string, string> = {
+  java: 'Java',
+  kotlin: 'Kotlin',
+  kt: 'Kotlin',
+  js: 'JavaScript',
+  javascript: 'JavaScript',
+  ts: 'TypeScript',
+  typescript: 'TypeScript',
+  tsx: 'TSX',
+  jsx: 'JSX',
+  py: 'Python',
+  python: 'Python',
+  sql: 'SQL',
+  bash: 'Bash',
+  sh: 'Shell',
+  shell: 'Shell',
+  zsh: 'Shell',
+  yml: 'YAML',
+  yaml: 'YAML',
+  xml: 'XML',
+  html: 'HTML',
+  css: 'CSS',
+  json: 'JSON',
+  properties: 'Properties',
+  dockerfile: 'Dockerfile',
+  go: 'Go',
+  rust: 'Rust',
+};
+
 function CodeBlockCard({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false);
+
+  const normalizedLang = (lang || '').trim().toLowerCase();
+  const displayLang = LANG_DISPLAY_MAP[normalizedLang] || lang || 'Code';
+  const codeLines = code.split('\n');
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), 1800);
     } catch {
       // ignore clipboard error
     }
   };
 
+  let lineNo = 0;
+
   return (
     <div className="md-code-card">
       <div className="md-code-header">
-        <span className="md-code-lang">{lang || 'text'}</span>
-        <button type="button" className="md-code-copy-btn" onClick={() => void handleCopy()}>
-          {copied ? '✓ 已复制' : '复制代码'}
+        <span className="md-code-lang">{displayLang}</span>
+        <button
+          type="button"
+          className={`md-code-copy-btn ${copied ? 'copied' : ''}`}
+          onClick={() => void handleCopy()}
+          title="复制代码"
+          aria-label="复制代码"
+        >
+          {copied ? (
+            <>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>已复制</span>
+            </>
+          ) : (
+            <>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span>复制</span>
+            </>
+          )}
         </button>
       </div>
       <pre className="md-code-pre">
-        <code>{code}</code>
+        <code>
+          {codeLines.map((lineText) => {
+            lineNo += 1;
+            const lineKey = `cl-${lineNo}`;
+            return (
+              <span key={lineKey} className="md-code-line">
+                {highlightCodeLine(lineText, lineKey)}
+                {lineNo < codeLines.length ? '\n' : ''}
+              </span>
+            );
+          })}
+        </code>
       </pre>
     </div>
   );
@@ -425,7 +779,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
     }
 
     // 9. 普通段落（合并连续的普通文本行）
-    const paraLines: { lineIdx: number; text: string; isLast?: boolean }[] = [];
+    const paraLines: { lineIdx: number; text: string }[] = [];
     while (
       i < lines.length &&
       lines[i].trim() !== '' &&

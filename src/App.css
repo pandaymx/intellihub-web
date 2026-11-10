@@ -787,13 +787,27 @@ body {
 }
 
 .md-link {
-  color: #93c5fd;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #8ab4f8;
   text-decoration: underline;
+  text-decoration-color: rgba(138, 180, 248, 0.45);
   text-underline-offset: 3px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .md-link:hover {
-  color: #bfdbfe;
+  color: #aecbfa;
+  text-decoration-color: #aecbfa;
+}
+
+.md-link-arrow {
+  font-size: 0.78em;
+  opacity: 0.8;
+  user-select: none;
 }
 
 /* 行内代码胶囊（仿 Google Gemini 深灰圆角底色） */
@@ -905,39 +919,46 @@ body {
   color: #cbd5e1;
 }
 
-/* 围栏代码块卡片 */
+/* 围栏代码块卡片（仿 Google Gemini 暗色语法高亮代码框） */
 .md-code-card {
   margin: 14px 0 18px;
-  border-radius: 12px;
-  background: #14171f;
+  border-radius: 14px;
+  background: #171921;
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .md-code-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 16px;
+  background: #1e212b;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .md-code-lang {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
-  text-transform: lowercase;
+  color: #9aa0a6;
+  letter-spacing: 0.02em;
 }
 
 .md-code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #9aa0a6;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 4px 9px;
+  border-radius: 7px;
   transition: all 0.15s ease;
 }
 
@@ -946,14 +967,62 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.md-code-copy-btn.copied {
+  color: #81c995;
+  background: rgba(129, 201, 149, 0.12);
+}
+
 .md-code-pre {
   margin: 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre;
+  tab-size: 4;
+  font-family:
+    "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13.5px;
-  line-height: 1.65;
-  color: #e2e8f0;
+  line-height: 1.68;
+  color: #e3e8ef;
+}
+
+.md-code-pre code {
+  font-family: inherit;
+  white-space: pre;
+}
+
+/* Google Gemini Dark 语法高亮配色 */
+.tok-keyword {
+  color: #c58af9;
+  font-weight: 500;
+}
+
+.tok-annotation {
+  color: #fdd663;
+}
+
+.tok-type {
+  color: #78d9ec;
+}
+
+.tok-func {
+  color: #8ab4f8;
+}
+
+.tok-string {
+  color: #81c995;
+}
+
+.tok-number {
+  color: #f28b82;
+}
+
+.tok-tag {
+  color: #f28b82;
+}
+
+.tok-comment {
+  color: #718096;
+  font-style: italic;
 }
 
 /* 引用块 */
