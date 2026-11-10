@@ -987,6 +987,11 @@ body {
 
 .md-code-pre code {
   font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
   white-space: pre;
 }
 
