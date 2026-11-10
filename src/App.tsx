@@ -125,6 +125,11 @@ export function App() {
   const [inputMessage, setInputMessage] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
 
+  // 用户提问复制与内联重新编辑状态
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState<string>('');
+
   // 气泡内人工审批备注与处理状态
   const [approvalNotes, setApprovalNotes] = useState<Record<string, string>>({});
   const [resumingMessageId, setResumingMessageId] = useState<string | null>(null);
@@ -214,6 +219,7 @@ export function App() {
     agent?: boolean;
     rag?: boolean;
     structured?: boolean;
+    baseMessages?: ChatMessageItem[];
   }) => {
     const textToSend = (overrideOptions?.text ?? inputMessage).trim();
     if (!textToSend || sending) return;
@@ -235,8 +241,9 @@ export function App() {
       timestamp: formatTime(),
     };
 
+    const sourceMessages = overrideOptions?.baseMessages ?? activeSession.messages;
     const shortTitle = textToSend.length > 16 ? `${textToSend.slice(0, 16)}...` : textToSend;
-    const historyForTurn = activeSession.messages
+    const historyForTurn = sourceMessages
       .filter((m) => !m.isGuardBlocked)
       .slice(-8)
       .map((m) => ({
@@ -244,7 +251,11 @@ export function App() {
         content: m.content,
       }));
 
-    updateSessionMessages(activeSession.id, (prev) => [...prev, userMsgItem], shortTitle);
+    updateSessionMessages(
+      activeSession.id,
+      (prev) => [...(overrideOptions?.baseMessages ?? prev), userMsgItem],
+      shortTitle,
+    );
     if (!overrideOptions?.text) {
       setInputMessage('');
     }
@@ -383,6 +394,38 @@ export function App() {
     if (activeSessionId === id) {
       setActiveSessionId(nextSessions[0].id);
     }
+  };
+
+  // 复制用户提问与内联修改重新发送
+  const handleCopyUserMessage = async (msg: ChatMessageItem) => {
+    try {
+      await navigator.clipboard.writeText(msg.content);
+      setCopiedMsgId(msg.id);
+      setTimeout(() => {
+        setCopiedMsgId((prev) => (prev === msg.id ? null : prev));
+      }, 1500);
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
+  const handleStartEditUserMessage = (msg: ChatMessageItem) => {
+    setEditingMsgId(msg.id);
+    setEditingText(msg.content);
+  };
+
+  const handleSubmitEditedUserMessage = async (msgId: string) => {
+    const trimmed = editingText.trim();
+    if (!trimmed || sending) return;
+    const msgIndex = activeSession.messages.findIndex((m) => m.id === msgId);
+    const priorMessages =
+      msgIndex >= 0 ? activeSession.messages.slice(0, msgIndex) : activeSession.messages;
+    setEditingMsgId(null);
+    setEditingText('');
+    await handleSendMessage({
+      text: trimmed,
+      baseMessages: priorMessages,
+    });
   };
 
   // 知识库抽屉内上传与检索操作
@@ -691,23 +734,59 @@ export function App() {
                         </details>
                       )}
 
-                      {/* 3. 正文内容 */}
-                      <div className="message-content-text">
-                        {msg.isGuardBlocked ? (
-                          <div className="guard-alert-box">
-                            <div className="guard-alert-title">
-                              🛡️ PromptInjectionGuard 安全护栏已拦截该指令
-                            </div>
-                            <p>{msg.content}</p>
-                            <div className="guard-alert-foot">
-                              触发规则：检测到企图覆盖系统指令或越狱的敏感特征（错误码：
-                              <code>{msg.errorCode}</code>）
-                            </div>
+                      {/* 3. 正文内容（用户消息支持内联重新编辑） */}
+                      {msg.role === 'user' && editingMsgId === msg.id ? (
+                        <div className="user-edit-box">
+                          <textarea
+                            className="user-edit-textarea"
+                            rows={3}
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                void handleSubmitEditedUserMessage(msg.id);
+                              } else if (e.key === 'Escape') {
+                                setEditingMsgId(null);
+                              }
+                            }}
+                          />
+                          <div className="user-edit-actions">
+                            <button
+                              type="button"
+                              className="edit-btn cancel"
+                              onClick={() => setEditingMsgId(null)}
+                            >
+                              取消
+                            </button>
+                            <button
+                              type="button"
+                              className="edit-btn submit"
+                              disabled={!editingText.trim() || sending}
+                              onClick={() => void handleSubmitEditedUserMessage(msg.id)}
+                            >
+                              发送并重新生成
+                            </button>
                           </div>
-                        ) : (
-                          msg.content
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="message-content-text">
+                          {msg.isGuardBlocked ? (
+                            <div className="guard-alert-box">
+                              <div className="guard-alert-title">
+                                🛡️ PromptInjectionGuard 安全护栏已拦截该指令
+                              </div>
+                              <p>{msg.content}</p>
+                              <div className="guard-alert-foot">
+                                触发规则：检测到企图覆盖系统指令或越狱的敏感特征（错误码：
+                                <code>{msg.errorCode}</code>）
+                              </div>
+                            </div>
+                          ) : (
+                            msg.content
+                          )}
+                        </div>
+                      )}
 
                       {/* 4. 气泡内联：高风险工具人工审批卡片 (Human-in-the-Loop) */}
                       {msg.awaitingApproval && msg.checkpointId && (
@@ -801,6 +880,57 @@ export function App() {
                         </div>
                       )}
                     </div>
+
+                    {/* 用户提问气泡下方：复制提问 & 修改提问 快捷按钮栏（对齐截图风格） */}
+                    {msg.role === 'user' && editingMsgId !== msg.id && (
+                      <div className="user-msg-actions">
+                        <button
+                          type="button"
+                          className="user-action-icon-btn"
+                          title="复制提问内容"
+                          onClick={() => void handleCopyUserMessage(msg)}
+                        >
+                          {copiedMsgId === msg.id ? (
+                            <span className="copied-tip">✓ 已复制</span>
+                          ) : (
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="user-action-icon-btn"
+                          title="修改提问并重新生成"
+                          onClick={() => handleStartEditUserMessage(msg)}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

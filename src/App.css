@@ -492,6 +492,105 @@ body {
   word-break: break-word;
 }
 
+/* 用户提问下方：复制与修改操作按钮行 */
+.user-msg-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 2px 6px 0;
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.message-row.user:hover .user-msg-actions {
+  opacity: 1;
+}
+
+.user-action-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 5px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.user-action-icon-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.copied-tip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #34d399;
+}
+
+/* 用户提问内联修改框 */
+.user-edit-box {
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-edit-textarea {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.55);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.55;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.user-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.edit-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.edit-btn.cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.edit-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.edit-btn.submit {
+  background: var(--accent);
+  color: #fff;
+}
+
+.edit-btn.submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.edit-btn.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* 气泡内联折叠块（思考过程 & 工具轨迹） */
 .inline-collapse {
   background: rgba(15, 23, 42, 0.65);
