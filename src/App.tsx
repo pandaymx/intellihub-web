@@ -609,28 +609,26 @@ export function App() {
             <div className="message-list">
               {activeSession.messages.map((msg) => (
                 <div key={msg.id} className={`message-row ${msg.role}`}>
-                  <div className="message-avatar">{msg.role === 'user' ? '👤' : '🤖'}</div>
-
                   <div className="message-bubble-wrapper">
-                    {/* 消息元信息头 */}
-                    <div className="message-meta-bar">
-                      <span className="meta-sender">
-                        {msg.role === 'user' ? '你' : `IntelliHub (${msg.channel || 'demo-mock'})`}
-                      </span>
-                      <span className="meta-time">{msg.timestamp}</span>
-                      {msg.latencyMs !== undefined && (
-                        <span className="meta-pill">{msg.latencyMs} ms</span>
-                      )}
-                      {msg.totalTokens !== undefined && msg.totalTokens > 0 && (
-                        <span className="meta-pill">{msg.totalTokens} tokens</span>
-                      )}
-                      {msg.awaitingApproval && (
-                        <span className="meta-pill warning">⏸️ 等待人工审批</span>
-                      )}
-                      {msg.isGuardBlocked && (
-                        <span className="meta-pill danger">🛡️ 安全护栏已拦截 ({msg.errorCode})</span>
-                      )}
-                    </div>
+                    {/* 仅在助手消息且有耗时/状态元信息时展示轻量标签条 */}
+                    {msg.role === 'assistant' && (
+                      <div className="message-meta-bar">
+                        {msg.latencyMs !== undefined && (
+                          <span className="meta-pill">{msg.latencyMs} ms</span>
+                        )}
+                        {msg.totalTokens !== undefined && msg.totalTokens > 0 && (
+                          <span className="meta-pill">{msg.totalTokens} tokens</span>
+                        )}
+                        {msg.awaitingApproval && (
+                          <span className="meta-pill warning">⏸️ 等待人工审批</span>
+                        )}
+                        {msg.isGuardBlocked && (
+                          <span className="meta-pill danger">
+                            🛡️ 安全护栏已拦截 ({msg.errorCode})
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div
                       className={`message-bubble ${msg.isGuardBlocked ? 'guard-blocked' : ''} ${
@@ -809,7 +807,6 @@ export function App() {
 
               {sending && (
                 <div className="message-row assistant">
-                  <div className="message-avatar">🤖</div>
                   <div className="message-bubble-wrapper">
                     <div className="message-bubble typing-indicator">
                       <span className="dot" />
