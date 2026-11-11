@@ -15,6 +15,11 @@ export interface SystemInfoResponse {
   registeredTools: string[];
   promptTemplateIds: string[];
   knowledgeBaseChunkCount: number;
+  vectorizedChunkCount?: number;
+  embeddingEnabled?: boolean;
+  embeddingDimensions?: number;
+  knowledgeStorePersistent?: boolean;
+  persistencePath?: string;
 }
 
 export interface ChannelInfoResponse {
@@ -407,8 +412,36 @@ export const intelliHubApi = {
     });
   },
 
-  getRagStats(): Promise<{ totalChunks: number }> {
-    return requestJson<{ totalChunks: number }>('/api/v1/rag/stats');
+  listDocuments(limit = 50): Promise<ScoredDocumentDto[]> {
+    return requestJson<ScoredDocumentDto[]>(`/api/v1/rag/documents?limit=${limit}`);
+  },
+
+  getRagStats(): Promise<{
+    totalChunks: number;
+    vectorizedChunks?: number;
+    vectorAvailable?: boolean;
+    vectorDimensions?: number;
+    persistent?: boolean;
+    persistencePath?: string;
+  }> {
+    return requestJson('/api/v1/rag/stats');
+  },
+
+  getChatSessions<T>(): Promise<T[]> {
+    return requestJson<T[]>('/api/v1/chat/sessions');
+  },
+
+  saveChatSessions<T>(sessions: T[]): Promise<number> {
+    return requestJson<number>('/api/v1/chat/sessions', {
+      method: 'PUT',
+      body: JSON.stringify(sessions),
+    });
+  },
+
+  deleteChatSession(sessionId: string): Promise<boolean> {
+    return requestJson<boolean>(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
   },
 
   getAgentTools(): Promise<ToolInfoResponse[]> {

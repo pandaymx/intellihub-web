@@ -200,6 +200,7 @@ export function App() {
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const sessionsLoadedRef = useRef<boolean>(false);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions[0];
   const activeModelOption = MODEL_OPTIONS.find((m) => m.id === channel) ?? MODEL_OPTIONS[0];
@@ -214,12 +215,53 @@ export function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 启动时从后端持久化接口（或本地缓存）恢复历史会话
+  useEffect(() => {
+    void (async () => {
+      try {
+        const persisted = await intelliHubApi.getChatSessions<ChatSession>();
+        if (Array.isArray(persisted) && persisted.length > 0) {
+          setSessions(persisted);
+          setActiveSessionId(persisted[0].id);
+          sessionsLoadedRef.current = true;
+          return;
+        }
+      } catch {
+        // fallback to localStorage
+      }
+      try {
+        const localRaw = localStorage.getItem('intellihub_chat_sessions');
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw) as ChatSession[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSessions(parsed);
+            setActiveSessionId(parsed[0].id);
+          }
+        }
+      } catch {
+        // ignore parse error
+      }
+      sessionsLoadedRef.current = true;
+    })();
+  }, []);
+
+  // 会话变更时自动同步至后端磁盘与 localStorage
+  useEffect(() => {
+    if (!sessionsLoadedRef.current) return;
+    try {
+      localStorage.setItem('intellihub_chat_sessions', JSON.stringify(sessions));
+    } catch {
+      // ignore storage quota
+    }
+    void intelliHubApi.saveChatSessions(sessions).catch(() => {});
+  }, [sessions]);
+
   const refreshSystemMetadata = useCallback(async () => {
     try {
       const [info, toolList, chunks, tplIds] = await Promise.all([
         intelliHubApi.getSystemInfo(),
         intelliHubApi.getAgentTools(),
-        intelliHubApi.searchKnowledge({ query: 'IntelliHub 路由 KeyPool 死循环 退款', topK: 10 }),
+        intelliHubApi.listDocuments(30),
         intelliHubApi.listPromptIds(),
       ]);
       setSystemInfo(info);
@@ -1256,7 +1298,14 @@ export function App() {
             </div>
 
             <div className="drawer-section">
-              <h4>🔍 已入库知识切片 ({kbChunks.length})</h4>
+              <h4>
+                🔍 已入库知识切片 ({kbChunks.length}){' '}
+                <span className="meta-pill">
+                  {systemInfo?.embeddingEnabled
+                    ? `Gemini Embedding (${systemInfo.embeddingDimensions || 768}维) · 已向量化 ${systemInfo.vectorizedChunkCount ?? kbChunks.length} 条`
+                    : 'BM25 词法索引'}
+                </span>
+              </h4>
               <div className="drawer-search-row">
                 <input
                   type="text"
@@ -1277,7 +1326,19 @@ export function App() {
                 {kbChunks.map((c) => (
                   <div key={c.id} className="drawer-chunk-card">
                     <div className="chunk-card-head">
-                      <code>{c.id}</code>
+                      <div>
+                        <code>{c.id}</code>
+                        {c.vectorScore != null && (
+                          <span className="meta-pill" style={{ marginLeft: '6px' }}>
+                            Vec: {c.vectorScore.toFixed(3)}
+                          </span>
+                        )}
+                        {c.bm25Score != null && (
+                          <span className="meta-pill" style={{ marginLeft: '6px' }}>
+                            BM25: {c.bm25Score.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                       <button
                         type="button"
                         className="chunk-del-btn"
@@ -1451,6 +1512,22 @@ export function App() {
                 <div>
                   <span>高可用路由组：</span>
                   <strong>{systemInfo?.routes?.join(', ') || 'demo-mock, default-ha'}</strong>
+                </div>
+                <div>
+                  <span>向量化引擎：</span>
+                  <strong>
+                    {systemInfo?.embeddingEnabled
+                      ? `gemini-embedding-001 (${systemInfo.embeddingDimensions || 768} 维)`
+                      : '未启用'}
+                  </strong>
+                </div>
+                <div>
+                  <span>本地持久化：</span>
+                  <strong>
+                    {systemInfo?.knowledgeStorePersistent
+                      ? `已开启 (${systemInfo.vectorizedChunkCount ?? 0}/${systemInfo.knowledgeBaseChunkCount} 条已落盘)`
+                      : '内存模式'}
+                  </strong>
                 </div>
               </div>
             </div>
