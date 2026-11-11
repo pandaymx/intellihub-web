@@ -16,6 +16,8 @@ export interface ChatAttachmentSummary {
   fileName: string;
   fileFormat: string;
   characterCount: number;
+  mimeType?: string;
+  previewDataUrl?: string;
 }
 
 export interface ChatMessageItem {
@@ -364,6 +366,11 @@ export function App() {
               fileName: a.fileName,
               fileFormat: a.fileFormat,
               characterCount: a.characterCount,
+              mimeType: a.mimeType,
+              previewDataUrl:
+                a.mimeType?.startsWith('image/') && a.base64Data && a.base64Data.length < 2_000_000
+                  ? `data:${a.mimeType};base64,${a.base64Data}`
+                  : undefined,
             }))
           : undefined,
     };
@@ -413,6 +420,8 @@ export function App() {
                 fileName: a.fileName,
                 fileFormat: a.fileFormat,
                 content: a.markdownContent,
+                mimeType: a.mimeType,
+                base64Data: a.base64Data,
               }))
             : undefined,
       });
@@ -679,6 +688,42 @@ export function App() {
     setChatAttachments((prev) => prev.filter((_, idx) => idx !== index));
   };
 
+  // 支持在聊天输入框中直接 Ctrl+V / Cmd+V 粘贴剪贴板截图或拖拽文件上传
+  const handleChatPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const rawFile = item.getAsFile();
+        if (rawFile) {
+          const ext = rawFile.type.split('/')[1] || 'png';
+          const namedFile =
+            rawFile.name && rawFile.name !== 'image.png'
+              ? rawFile
+              : new File([rawFile], `paste-${Date.now()}.${ext}`, { type: rawFile.type });
+          files.push(namedFile);
+        }
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      const dt = new DataTransfer();
+      for (const f of files) {
+        dt.items.add(f);
+      }
+      void handleChatSelectFiles(dt.files);
+    }
+  };
+
+  const handleChatDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      void handleChatSelectFiles(e.dataTransfer.files);
+    }
+  };
+
   const handleSearchKbInDrawer = async () => {
     if (!kbSearchKeyword.trim()) return;
     setKbBusy(true);
@@ -734,37 +779,50 @@ export function App() {
   };
 
   const ACCEPTED_FILE_EXTENSIONS =
-    '.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.md,.markdown,.txt,.log,.html,.htm,.xml,.json,.jsonl,.yaml,.yml,.properties,.toml,.java,.kt,.py,.ts,.tsx,.js,.go,.rs,.sql,.sh';
+    'image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.md,.markdown,.txt,.log,.html,.htm,.xml,.json,.jsonl,.yaml,.yml,.properties,.toml,.java,.kt,.py,.ts,.tsx,.js,.go,.rs,.sql,.sh';
 
   const renderChatAttachmentBar = () => {
     if (chatAttachments.length === 0 && !chatUploading && !chatUploadHint) return null;
     return (
       <div className="chat-attachments-bar">
         <div className="chat-attachments-chips">
-          {chatAttachments.map((att, idx) => (
-            <div key={`${att.fileName}-${att.characterCount}`} className="chat-attachment-chip">
-              <span className="att-format-tag">{att.fileFormat}</span>
-              <span className="att-name" title={att.fileName}>
-                {att.fileName}
-              </span>
-              <span className="att-chars">{att.characterCount} 字</span>
-              <button
-                type="button"
-                className="att-remove-btn"
-                title="移除附件"
-                onClick={() => handleRemoveChatAttachment(idx)}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <label className="att-sync-toggle" title="上传对话附件时是否自动切分并存入向量知识库">
+          {chatAttachments.map((att, idx) => {
+            const isImage = att.mimeType?.startsWith('image/') && att.base64Data;
+            const isMultimodal =
+              att.mimeType?.startsWith('image/') || att.mimeType === 'application/pdf';
+            return (
+              <div key={`${att.fileName}-${att.characterCount}`} className="chat-attachment-chip">
+                {isImage && (
+                  <img
+                    src={`data:${att.mimeType};base64,${att.base64Data}`}
+                    alt={att.fileName}
+                    className="att-thumb-img"
+                  />
+                )}
+                <span className="att-format-tag">{att.fileFormat}</span>
+                {isMultimodal && <span className="att-vision-tag">👁️ Media 视觉</span>}
+                <span className="att-name" title={att.fileName}>
+                  {att.fileName}
+                </span>
+                {!isImage && <span className="att-chars">{att.characterCount} 字</span>}
+                <button
+                  type="button"
+                  className="att-remove-btn"
+                  title="移除附件"
+                  onClick={() => handleRemoveChatAttachment(idx)}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+          <label className="att-sync-toggle" title="上传文档附件时是否自动切分并存入向量知识库">
             <input
               type="checkbox"
               checked={syncChatAttachmentsToKb}
               onChange={(e) => setSyncChatAttachmentsToKb(e.target.checked)}
             />
-            <span>同步写入知识库</span>
+            <span>文档同步写入知识库</span>
           </label>
         </div>
         {(chatUploading || chatUploadHint) && (
@@ -953,12 +1011,16 @@ export function App() {
 
               {renderChatAttachmentBar()}
 
-              {/* 居中输入胶囊栏（完全对齐截图交互） */}
-              <div className="gemini-pill-box">
+              {/* 居中输入胶囊栏（支持粘贴截图 Ctrl+V、拖拽文件与点击 ＋ 上传） */}
+              <div
+                className="gemini-pill-box"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleChatDrop}
+              >
                 <button
                   type="button"
                   className="pill-plus-btn"
-                  title="上传多格式文件（PDF / Word / Excel / PPT / CSV / Markdown / JSON / 代码等）"
+                  title="上传图片截图、PDF 或多格式文档（支持直接粘贴截图 Ctrl+V）"
                   disabled={chatUploading}
                   onClick={() => chatFileInputRef.current?.click()}
                 >
@@ -969,11 +1031,12 @@ export function App() {
                   className="pill-text-input"
                   placeholder={
                     chatAttachments.length > 0
-                      ? '输入针对已上传文件的提问（直接回车默认总结分析）...'
-                      : '提问、输入指令，或点击左侧 ＋ 上传多格式文档...'
+                      ? '输入针对图片/文档的提问（直接回车默认执行多模态解析）...'
+                      : '提问、直接 Ctrl+V 粘贴截图，或点击 ＋ 上传图片/PDF/文档...'
                   }
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
+                  onPaste={handleChatPaste}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -1184,15 +1247,31 @@ export function App() {
                           {msg.attachments && msg.attachments.length > 0 && (
                             <div className="msg-attachments-row">
                               {msg.attachments.map((att) => (
-                                <span
+                                <div
                                   key={`${att.fileName}-${att.characterCount}`}
-                                  className="msg-att-badge"
+                                  className="msg-att-card"
                                 >
-                                  📎 <strong>{att.fileName}</strong>
-                                  <span className="msg-att-meta">
-                                    {att.fileFormat} · {att.characterCount}字
+                                  {att.previewDataUrl && (
+                                    <img
+                                      src={att.previewDataUrl}
+                                      alt={att.fileName}
+                                      className="msg-att-preview-img"
+                                    />
+                                  )}
+                                  <span className="msg-att-badge">
+                                    {att.mimeType?.startsWith('image/')
+                                      ? '🖼️'
+                                      : att.fileFormat === 'PDF'
+                                        ? '📕'
+                                        : '📎'}{' '}
+                                    <strong>{att.fileName}</strong>
+                                    <span className="msg-att-meta">
+                                      {att.fileFormat}
+                                      {!att.mimeType?.startsWith('image/') &&
+                                        ` · ${att.characterCount}字`}
+                                    </span>
                                   </span>
-                                </span>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -1401,11 +1480,15 @@ export function App() {
 
               {renderChatAttachmentBar()}
 
-              <div className="gemini-pill-box">
+              <div
+                className="gemini-pill-box"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleChatDrop}
+              >
                 <button
                   type="button"
                   className="pill-plus-btn"
-                  title="上传多格式文件（PDF / Word / Excel / PPT / CSV / Markdown / JSON / 代码等）"
+                  title="上传图片截图、PDF 或多格式文档（支持直接粘贴截图 Ctrl+V）"
                   disabled={chatUploading}
                   onClick={() => chatFileInputRef.current?.click()}
                 >
@@ -1416,11 +1499,12 @@ export function App() {
                   className="pill-text-input"
                   placeholder={
                     chatAttachments.length > 0
-                      ? '输入针对已上传文件的提问（直接回车默认总结分析）...'
-                      : '继续提问、输入指令，或点击 ＋ 上传文件...'
+                      ? '输入针对图片/文档的提问（直接回车默认执行多模态解析）...'
+                      : '继续提问、直接 Ctrl+V 粘贴截图，或点击 ＋ 上传文件...'
                   }
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
+                  onPaste={handleChatPaste}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();

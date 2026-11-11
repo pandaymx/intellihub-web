@@ -109,6 +109,8 @@ export interface FileParseResultDto {
   chunkCount: number;
   chunkIds: string[];
   metadata?: Record<string, unknown>;
+  mimeType?: string;
+  base64Data?: string;
 }
 
 export interface BatchFileIngestResponse {
@@ -230,6 +232,8 @@ export interface AttachedDocumentContext {
   fileName: string;
   fileFormat: string;
   content: string;
+  mimeType?: string;
+  base64Data?: string;
 }
 
 export interface UnifiedChatTurnRequest {

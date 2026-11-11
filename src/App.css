@@ -1880,6 +1880,39 @@ body {
   letter-spacing: 0.03em;
 }
 
+.att-vision-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+.att-thumb-img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.msg-att-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.msg-att-preview-img {
+  max-width: 240px;
+  max-height: 160px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .att-name {
   max-width: 180px;
   overflow: hidden;
