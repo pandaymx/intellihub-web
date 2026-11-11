@@ -1840,3 +1840,142 @@ body {
     opacity: 1;
   }
 }
+
+/* 多格式文件上传与对话附件样式 */
+.chat-attachments-bar {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-attachments-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.att-format-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  letter-spacing: 0.03em;
+}
+
+.att-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.att-chars {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.att-remove-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.att-remove-btn:hover {
+  color: #f87171;
+}
+
+.att-sync-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chat-upload-status {
+  font-size: 12px;
+  color: #7dd3fc;
+  padding-left: 4px;
+}
+
+.msg-attachments-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.msg-att-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  color: #f1f5f9;
+}
+
+.msg-att-meta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.kb-upload-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.kb-parsed-summary-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kb-parsed-summary-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.kb-parsed-name {
+  color: #e2e8f0;
+  word-break: break-all;
+}

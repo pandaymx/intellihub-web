@@ -3,6 +3,7 @@ import './App.css';
 import {
   type AgentStepTraceDto,
   ApiClientError,
+  type FileParseResultDto,
   type PromptTemplateDto,
   type ScoredDocumentDto,
   type SystemInfoResponse,
@@ -10,6 +11,12 @@ import {
   intelliHubApi,
 } from './api/intellihub';
 import { MarkdownContent } from './components/MarkdownContent';
+
+export interface ChatAttachmentSummary {
+  fileName: string;
+  fileFormat: string;
+  characterCount: number;
+}
 
 export interface ChatMessageItem {
   id: string;
@@ -28,6 +35,7 @@ export interface ChatMessageItem {
   structuredData?: Record<string, unknown>;
   isGuardBlocked?: boolean;
   errorCode?: number;
+  attachments?: ChatAttachmentSummary[];
 }
 
 export interface ChatSession {
@@ -165,6 +173,16 @@ export function App() {
   // 输入框与发送状态
   const [inputMessage, setInputMessage] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
+
+  // 对话框多格式附件上传与解析状态
+  const [chatAttachments, setChatAttachments] = useState<FileParseResultDto[]>([]);
+  const [chatUploading, setChatUploading] = useState<boolean>(false);
+  const [syncChatAttachmentsToKb, setSyncChatAttachmentsToKb] = useState<boolean>(true);
+  const [chatUploadHint, setChatUploadHint] = useState<string | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+  const kbFileInputRef = useRef<HTMLInputElement | null>(null);
+  const kbPreviewFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [kbParsedResults, setKbParsedResults] = useState<FileParseResultDto[]>([]);
 
   // 用户提问复制与内联重新编辑状态
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
@@ -316,8 +334,14 @@ export function App() {
     structured?: boolean;
     baseMessages?: ChatMessageItem[];
   }) => {
-    const textToSend = (overrideOptions?.text ?? inputMessage).trim();
-    if (!textToSend || sending) return;
+    const pendingAttachments = overrideOptions ? [] : chatAttachments;
+    const rawInputText = (overrideOptions?.text ?? inputMessage).trim();
+    const textToSend =
+      rawInputText ||
+      (pendingAttachments.length > 0
+        ? `请分析并总结我上传的 ${pendingAttachments.map((a) => a.fileName).join('、')} 的核心内容。`
+        : '');
+    if (!textToSend || sending || chatUploading) return;
 
     const useAgent = overrideOptions?.agent ?? enableAgent;
     const useRag = overrideOptions?.rag ?? enableRag;
@@ -334,6 +358,14 @@ export function App() {
       role: 'user',
       content: textToSend,
       timestamp: formatTime(),
+      attachments:
+        pendingAttachments.length > 0
+          ? pendingAttachments.map((a) => ({
+              fileName: a.fileName,
+              fileFormat: a.fileFormat,
+              characterCount: a.characterCount,
+            }))
+          : undefined,
     };
 
     const sourceMessages = overrideOptions?.baseMessages ?? activeSession.messages;
@@ -353,6 +385,8 @@ export function App() {
     );
     if (!overrideOptions?.text) {
       setInputMessage('');
+      setChatAttachments([]);
+      setChatUploadHint(null);
     }
     setSending(true);
     scrollToBottom();
@@ -373,6 +407,14 @@ export function App() {
         enableRag: useRag,
         enableStructuredExtract: useStructured,
         targetFields,
+        attachments:
+          pendingAttachments.length > 0
+            ? pendingAttachments.map((a) => ({
+                fileName: a.fileName,
+                fileFormat: a.fileFormat,
+                content: a.markdownContent,
+              }))
+            : undefined,
       });
 
       const assistantMsg: ChatMessageItem = {
@@ -546,6 +588,97 @@ export function App() {
     }
   };
 
+  // 知识库抽屉：多格式文件一键上传、解析、切分并向量化入库
+  const handleKbUploadFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || kbBusy) return;
+    const files = Array.from(fileList);
+    setKbBusy(true);
+    setKbFeedback(null);
+    try {
+      const res = await intelliHubApi.uploadAndIngestFiles(files, {
+        tenantId: 'default',
+        kbId: 'builtin',
+      });
+      setKbParsedResults(res.files);
+      if (res.files.length > 0) {
+        setNewDocTitle(res.files[0].title);
+        setNewDocContent(res.files[0].markdownContent);
+      }
+      setKbFeedback(
+        `✅ 成功上传并解析 ${res.fileCount} 个文件（${res.files.map((f) => `${f.fileName}[${f.fileFormat}]`).join('、')}），共生成 ${res.totalChunkCount} 个语义切片并写入向量库！`,
+      );
+      await refreshSystemMetadata();
+    } catch (e) {
+      setKbFeedback(`❌ 文件解析入库失败：${e instanceof Error ? e.message : '未知错误'}`);
+    } finally {
+      setKbBusy(false);
+      if (kbFileInputRef.current) kbFileInputRef.current.value = '';
+    }
+  };
+
+  // 知识库抽屉：仅解析文件并加载到下方 Markdown 编辑器供预览修改
+  const handleKbParsePreviewFile = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || kbBusy) return;
+    const files = Array.from(fileList);
+    setKbBusy(true);
+    setKbFeedback(null);
+    try {
+      const parsedList = await intelliHubApi.parseFiles(files);
+      setKbParsedResults(parsedList);
+      if (parsedList.length > 0) {
+        const first = parsedList[0];
+        setNewDocTitle(first.title);
+        setNewDocContent(
+          parsedList.length === 1
+            ? first.markdownContent
+            : parsedList.map((p) => p.markdownContent).join('\n\n---\n\n'),
+        );
+        setKbFeedback(
+          `📄 已将 ${parsedList.map((p) => `${p.fileName} (${p.fileFormat}, ${p.characterCount}字)`).join('、')} 解析为结构化 Markdown 并填入编辑器，确认后点击下方按钮即可入库。`,
+        );
+      }
+    } catch (e) {
+      setKbFeedback(`❌ 文件解析失败：${e instanceof Error ? e.message : '未知错误'}`);
+    } finally {
+      setKbBusy(false);
+      if (kbPreviewFileInputRef.current) kbPreviewFileInputRef.current.value = '';
+    }
+  };
+
+  // 对话框：上传多格式文件作为当前对话附件（可选同步入库）
+  const handleChatSelectFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || chatUploading) return;
+    const files = Array.from(fileList);
+    setChatUploading(true);
+    setChatUploadHint('正在解析多格式文档...');
+    try {
+      if (syncChatAttachmentsToKb) {
+        const res = await intelliHubApi.uploadAndIngestFiles(files, {
+          tenantId: 'default',
+          kbId: 'builtin',
+        });
+        setChatAttachments((prev) => [...prev, ...res.files]);
+        setChatUploadHint(
+          `✅ 已解析 ${res.fileCount} 个文件并同步写入知识库（新增 ${res.totalChunkCount} 个向量切片）`,
+        );
+        await refreshSystemMetadata();
+      } else {
+        const parsed = await intelliHubApi.parseFiles(files);
+        setChatAttachments((prev) => [...prev, ...parsed]);
+        setChatUploadHint(`✅ 已解析 ${parsed.length} 个文件，发送消息即可直接分析`);
+      }
+    } catch (e) {
+      setChatUploadHint(`❌ 解析失败：${e instanceof Error ? e.message : '未知错误'}`);
+    } finally {
+      setChatUploading(false);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveChatAttachment = (index: number) => {
+    setChatAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
   const handleSearchKbInDrawer = async () => {
     if (!kbSearchKeyword.trim()) return;
     setKbBusy(true);
@@ -598,6 +731,47 @@ export function App() {
     } finally {
       setTplSaving(false);
     }
+  };
+
+  const ACCEPTED_FILE_EXTENSIONS =
+    '.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.md,.markdown,.txt,.log,.html,.htm,.xml,.json,.jsonl,.yaml,.yml,.properties,.toml,.java,.kt,.py,.ts,.tsx,.js,.go,.rs,.sql,.sh';
+
+  const renderChatAttachmentBar = () => {
+    if (chatAttachments.length === 0 && !chatUploading && !chatUploadHint) return null;
+    return (
+      <div className="chat-attachments-bar">
+        <div className="chat-attachments-chips">
+          {chatAttachments.map((att, idx) => (
+            <div key={`${att.fileName}-${att.characterCount}`} className="chat-attachment-chip">
+              <span className="att-format-tag">{att.fileFormat}</span>
+              <span className="att-name" title={att.fileName}>
+                {att.fileName}
+              </span>
+              <span className="att-chars">{att.characterCount} 字</span>
+              <button
+                type="button"
+                className="att-remove-btn"
+                title="移除附件"
+                onClick={() => handleRemoveChatAttachment(idx)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <label className="att-sync-toggle" title="上传对话附件时是否自动切分并存入向量知识库">
+            <input
+              type="checkbox"
+              checked={syncChatAttachmentsToKb}
+              onChange={(e) => setSyncChatAttachmentsToKb(e.target.checked)}
+            />
+            <span>同步写入知识库</span>
+          </label>
+        </div>
+        {(chatUploading || chatUploadHint) && (
+          <div className="chat-upload-status">{chatUploadHint}</div>
+        )}
+      </div>
+    );
   };
 
   // 渲染对齐 Google Gemini 官网的自定义悬浮模型选择器 (Popover)
@@ -755,6 +929,14 @@ export function App() {
 
       {/* 中央一体化全能聊天主界面 */}
       <main className="copilot-main">
+        <input
+          ref={chatFileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_FILE_EXTENSIONS}
+          style={{ display: 'none' }}
+          onChange={(e) => void handleChatSelectFiles(e.target.files)}
+        />
         {/* 顶部栏：仅保留会话标题与引擎在线状态，模型切换统一收敛至输入胶囊内 */}
         <header className="copilot-header">
           <div className="header-left">
@@ -769,20 +951,27 @@ export function App() {
             <div className="gemini-start-screen">
               <h2 className="gemini-start-title">我们从哪里开始？</h2>
 
+              {renderChatAttachmentBar()}
+
               {/* 居中输入胶囊栏（完全对齐截图交互） */}
               <div className="gemini-pill-box">
                 <button
                   type="button"
                   className="pill-plus-btn"
-                  title="管理知识库文档"
-                  onClick={() => setActiveDrawer(activeDrawer === 'kb' ? 'none' : 'kb')}
+                  title="上传多格式文件（PDF / Word / Excel / PPT / CSV / Markdown / JSON / 代码等）"
+                  disabled={chatUploading}
+                  onClick={() => chatFileInputRef.current?.click()}
                 >
                   ＋
                 </button>
                 <input
                   type="text"
                   className="pill-text-input"
-                  placeholder="提问或输入指令..."
+                  placeholder={
+                    chatAttachments.length > 0
+                      ? '输入针对已上传文件的提问（直接回车默认总结分析）...'
+                      : '提问、输入指令，或点击左侧 ＋ 上传多格式文档...'
+                  }
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={(e) => {
@@ -796,7 +985,11 @@ export function App() {
                 <button
                   type="button"
                   className="pill-send-icon-btn"
-                  disabled={sending || !inputMessage.trim()}
+                  disabled={
+                    sending ||
+                    chatUploading ||
+                    (!inputMessage.trim() && chatAttachments.length === 0)
+                  }
                   onClick={() => void handleSendMessage()}
                   title="发送"
                 >
@@ -988,6 +1181,21 @@ export function App() {
                         </div>
                       ) : (
                         <div className="message-content-text">
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="msg-attachments-row">
+                              {msg.attachments.map((att) => (
+                                <span
+                                  key={`${att.fileName}-${att.characterCount}`}
+                                  className="msg-att-badge"
+                                >
+                                  📎 <strong>{att.fileName}</strong>
+                                  <span className="msg-att-meta">
+                                    {att.fileFormat} · {att.characterCount}字
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {msg.isGuardBlocked ? (
                             <div className="guard-alert-box">
                               <div className="guard-alert-title">
@@ -1191,19 +1399,26 @@ export function App() {
                 </div>
               )}
 
+              {renderChatAttachmentBar()}
+
               <div className="gemini-pill-box">
                 <button
                   type="button"
                   className="pill-plus-btn"
-                  title="管理知识库文档"
-                  onClick={() => setActiveDrawer(activeDrawer === 'kb' ? 'none' : 'kb')}
+                  title="上传多格式文件（PDF / Word / Excel / PPT / CSV / Markdown / JSON / 代码等）"
+                  disabled={chatUploading}
+                  onClick={() => chatFileInputRef.current?.click()}
                 >
                   ＋
                 </button>
                 <input
                   type="text"
                   className="pill-text-input"
-                  placeholder="继续提问或输入指令..."
+                  placeholder={
+                    chatAttachments.length > 0
+                      ? '输入针对已上传文件的提问（直接回车默认总结分析）...'
+                      : '继续提问、输入指令，或点击 ＋ 上传文件...'
+                  }
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={(e) => {
@@ -1217,7 +1432,11 @@ export function App() {
                 <button
                   type="button"
                   className="pill-send-icon-btn"
-                  disabled={sending || !inputMessage.trim()}
+                  disabled={
+                    sending ||
+                    chatUploading ||
+                    (!inputMessage.trim() && chatAttachments.length === 0)
+                  }
                   onClick={() => void handleSendMessage()}
                   title="发送"
                 >
@@ -1268,7 +1487,70 @@ export function App() {
           </div>
           <div className="drawer-body">
             <div className="drawer-section">
-              <h4>➕ 投喂新 Markdown 知识文档</h4>
+              <h4>📂 多格式文档上传与智能解析</h4>
+              <p className="drawer-hint">
+                支持一键上传并解析{' '}
+                <strong>
+                  PDF、Word (.docx)、Excel (.xlsx)、PPT (.pptx)、CSV/TSV、HTML、JSON/YAML、源代码与
+                  Markdown/TXT
+                </strong>
+                ，自动保留章节层级、表格表头与围栏代码块：
+              </p>
+              <input
+                ref={kbFileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_FILE_EXTENSIONS}
+                style={{ display: 'none' }}
+                onChange={(e) => void handleKbUploadFiles(e.target.files)}
+              />
+              <input
+                ref={kbPreviewFileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_FILE_EXTENSIONS}
+                style={{ display: 'none' }}
+                onChange={(e) => void handleKbParsePreviewFile(e.target.files)}
+              />
+              <div className="kb-upload-btn-group">
+                <button
+                  type="button"
+                  className="drawer-primary-btn"
+                  disabled={kbBusy}
+                  onClick={() => kbFileInputRef.current?.click()}
+                >
+                  {kbBusy ? '正在解析处理...' : '📤 选择多格式文件并直接向量化入库'}
+                </button>
+                <button
+                  type="button"
+                  className="drawer-sec-btn"
+                  disabled={kbBusy}
+                  onClick={() => kbPreviewFileInputRef.current?.click()}
+                >
+                  🔍 仅解析预览到下方编辑器
+                </button>
+              </div>
+              {kbParsedResults.length > 0 && (
+                <div className="kb-parsed-summary-list">
+                  {kbParsedResults.map((f) => (
+                    <div
+                      key={`${f.fileName}-${f.characterCount}`}
+                      className="kb-parsed-summary-item"
+                    >
+                      <span className="att-format-tag">{f.fileFormat}</span>
+                      <strong className="kb-parsed-name">{f.fileName}</strong>
+                      <span className="meta-pill">{f.characterCount} 字符</span>
+                      {f.chunkCount > 0 && (
+                        <span className="meta-pill">{f.chunkCount} 个切片已入库</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="drawer-section">
+              <h4>➕ 手动编辑 / 投喂 Markdown 知识文档</h4>
               <p className="drawer-hint">
                 入库后无需重启，直接在左侧聊天框提问（如“物流破损怎么赔付？”）即可实时引用。
               </p>

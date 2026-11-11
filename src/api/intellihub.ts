@@ -100,6 +100,24 @@ export interface IngestResultResponse {
   chunkIds: string[];
 }
 
+export interface FileParseResultDto {
+  fileName: string;
+  fileFormat: string;
+  title: string;
+  markdownContent: string;
+  characterCount: number;
+  chunkCount: number;
+  chunkIds: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface BatchFileIngestResponse {
+  fileCount: number;
+  totalChunkCount: number;
+  allChunkIds: string[];
+  files: FileParseResultDto[];
+}
+
 export interface RagSearchApiRequest {
   query: string;
   topK?: number;
@@ -208,6 +226,12 @@ export interface HistoryMessage {
   content: string;
 }
 
+export interface AttachedDocumentContext {
+  fileName: string;
+  fileFormat: string;
+  content: string;
+}
+
 export interface UnifiedChatTurnRequest {
   message: string;
   history?: HistoryMessage[];
@@ -219,6 +243,7 @@ export interface UnifiedChatTurnRequest {
   tenantId?: string;
   kbId?: string;
   temperature?: number;
+  attachments?: AttachedDocumentContext[];
 }
 
 export interface UnifiedChatTurnResponse {
@@ -390,6 +415,53 @@ export const intelliHubApi = {
       method: 'POST',
       body: JSON.stringify(req),
     });
+  },
+
+  async parseFiles(files: File[]): Promise<FileParseResultDto[]> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    const response = await fetch('/api/v1/rag/documents/parse', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = (await response.json()) as ApiResponse<FileParseResultDto[]>;
+    if (!response.ok || payload.code !== 0) {
+      throw new ApiClientError(
+        payload?.code ?? response.status,
+        payload?.message || `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    return payload.data;
+  },
+
+  async uploadAndIngestFiles(
+    files: File[],
+    options?: { title?: string; tenantId?: string; kbId?: string },
+  ): Promise<BatchFileIngestResponse> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    if (options?.title) formData.append('title', options.title);
+    if (options?.tenantId) formData.append('tenantId', options.tenantId);
+    if (options?.kbId) formData.append('kbId', options.kbId);
+
+    const response = await fetch('/api/v1/rag/documents/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = (await response.json()) as ApiResponse<BatchFileIngestResponse>;
+    if (!response.ok || payload.code !== 0) {
+      throw new ApiClientError(
+        payload?.code ?? response.status,
+        payload?.message || `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    return payload.data;
   },
 
   searchKnowledge(req: RagSearchApiRequest): Promise<ScoredDocumentDto[]> {
